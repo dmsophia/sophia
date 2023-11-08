@@ -21,7 +21,7 @@ def close_connection(exception):
 class WeatherETL:
     DATABASE = 'clima.db'
     API_KEY = '2c6612dc25ba49da5240a19ee4d0621d'
-    CITIES = ['Sao Paulo', 'Rio de Janeiro', 'Salvador', 'Fortaleza', 'Belo Horizonte', 'Pernambuco', 'Santa Catarina', 'Porto Alegre', 'Natal', 'Vitória']
+    CITIES = ['São Paulo', 'Rio de Janeiro', 'Salvador', 'Fortaleza', 'Belo Horizonte', 'Pernambuco', 'Santa Catarina', 'Porto Alegre', 'Natal', 'Vitória']
     
     def __init__(self):
         self.init_db()
