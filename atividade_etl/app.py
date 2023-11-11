@@ -9,7 +9,7 @@ app = Flask(__name__)
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = sqlite3.connect('clima.db')
+        db = g._database = sqlite3.connect('weather.db')
         db.row_factory = sqlite3.Row
     return db
 
@@ -20,14 +20,14 @@ def close_connection(exception):
         db.close()
 
 class WeatherETL:
-    API_KEY = '2c6612dc25ba49da5240a19ee4d0621d'  
+    API_KEY = '2c6612dc25ba49da5240a19ee4d0621d'
     CITIES = ['São Paulo', 'Rio de Janeiro', 'Salvador', 'Fortaleza', 'Belo Horizonte']
 
     @staticmethod
     def init_db():
         with get_db() as conn:
             conn.execute('''
-                CREATE TABLE IF NOT EXISTS clima (
+                CREATE TABLE IF NOT EXISTS weather_data (
                     data_ingestao TEXT,
                     tipo TEXT,
                     valores TEXT,
@@ -61,7 +61,7 @@ class WeatherETL:
     @staticmethod
     def load_data(transformed_data):
         with get_db() as conn:
-            conn.execute('INSERT INTO clima (data_ingestao, tipo, valores, uso) VALUES (?, ?, ?, ?)',
+            conn.execute('INSERT INTO weather_data (data_ingestao, tipo, valores, uso) VALUES (?, ?, ?, ?)',
                          (transformed_data['data_ingestao'], transformed_data['tipo'],
                           transformed_data['valores'], transformed_data['uso']))
             conn.commit()
@@ -83,14 +83,19 @@ def etl_route():
 @app.route('/data', methods=['GET'])
 def get_data():
     cursor = get_db().cursor()
-    cursor.execute('SELECT * FROM clima')
+    cursor.execute('SELECT * FROM weather_data')
     rows = cursor.fetchall()
     data = []
     for row in rows:
-        try:
-            valores = json.loads(row["valores"]) if isinstance(row["valores"], str) else row["valores"]
-        except (TypeError, ValueError):
-            valores = {}  # ou algum valor padrão ou manipulação de erro
+        valores = row["valores"]
+        if isinstance(valores, str):
+            try:
+                valores = json.loads(valores)
+            except (TypeError, ValueError):
+                valores = {}
+        else:
+            valores = {}
+
         data.append({
             "data_ingestao": row["data_ingestao"],
             "tipo": row["tipo"],
@@ -100,5 +105,6 @@ def get_data():
     return jsonify(data)
 
 if __name__ == '__main__':
-    WeatherETL.init_db()
+    with app.app_context():
+        WeatherETL.init_db()
     app.run(debug=True)

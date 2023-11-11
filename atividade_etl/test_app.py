@@ -1,61 +1,70 @@
 import pytest
 from app import app, WeatherETL, get_db
-import requests_mock
 import sqlite3
+import json
+import requests_mock
+from datetime import datetime
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def client():
     app.config['TESTING'] = True
-    with app.test_client() as client:
-        with app.app_context():
-            init_db() 
-        yield client
+    with app.app_context():
+        WeatherETL.init_db()
+        yield app.test_client()
+    with app.app_context():
+        with sqlite3.connect('clima.db') as conn:
+            conn.execute('DROP TABLE IF EXISTS clima')
 
-def init_db():
-    with sqlite3.connect(WeatherETL.DATABASE) as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS clima (
-                data_ingestao TEXT,
-                tipo TEXT,
-                valores REAL,
-                uso TEXT
-            )
-        ''')
-        conn.commit()
+@pytest.fixture
+def setup_database():
+    with app.app_context():
+        WeatherETL.init_db()
+        yield
+        with sqlite3.connect('clima.db') as conn:
+            conn.execute('DROP TABLE IF EXISTS clima')
 
-def test_etl_route(client):
+@pytest.fixture
+def mock_requests():
     with requests_mock.Mocker() as m:
-        for city in WeatherETL.CITIES:
-            m.get(f"http://api.openweathermap.org/data/2.5/weather?q={city}&APPID={WeatherETL.API_KEY}&units=metric",
-                  json={'main': {'temp': 25}})
-        
-        response = client.get('/etl')
-        
-        assert response.status_code == 200
-        assert response.json == {'message': 'ETL executado com sucesso.'}
+        yield m
 
-def test_data_route(client):
-    # Clear the database table before inserting test data
-    with sqlite3.connect(WeatherETL.DATABASE) as conn:
-        conn.execute('DELETE FROM clima')
-        conn.commit()
-
-        conn.execute('INSERT INTO clima (data_ingestao, tipo, valores, uso) VALUES (?, ?, ?, ?)',
-                     ("2023-01-01 12:00:00", "Test City", 20.0, "previsão"))
-        conn.commit()
+def test_etl_route(client, setup_database, mock_requests):
+    for city in WeatherETL.CITIES:
+        mock_requests.get(f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={WeatherETL.API_KEY}&units=metric",
+                          json={
+                              'main': {'temp': 25},
+                              'weather': [{'main': 'Clear', 'description': 'clear sky'}]
+                          })
     
-    response = client.get('/data')
-    
+    response = client.get('/etl')
     assert response.status_code == 200
-    data = response.json
-    assert len(data) == 1  
-    assert data[0]['tipo'] == "Test City"
-    assert data[0]['valores'] == 20.0
-    assert data[0]['uso'] == "previsão"
+    assert response.get_json() == {'message': 'ETL executado com sucesso.'}
 
-@pytest.fixture(scope="module")
-def teardown():
-    yield
-    with sqlite3.connect(WeatherETL.DATABASE) as conn:
-        conn.execute('DROP TABLE clima')
-        conn.commit()
+def test_data_route(client, setup_database):
+    with app.app_context():
+        conn = get_db()
+        conn.execute('DELETE FROM clima')
+
+        weather_details = {
+            'temperature': 20,
+            'humidity': 50,
+            'pressure': 1012,
+            'description': 'clear sky'
+        }
+        transformed_data = {
+            'data_ingestao': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'tipo': 'TestCity',
+            'valores': json.dumps(weather_details), 
+            'uso': 'previsão'
+        }
+        WeatherETL.load_data(transformed_data)
+
+    response = client.get('/data')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data) == 1
+    assert data[0]['tipo'] == 'TestCity'
+    assert data[0]['uso'] == 'previsão'
+    
+    assert isinstance(data[0]['valores'], dict), "Valores should be a dictionary"
+    assert data[0]['valores'] == weather_details, "The weather details do not match"
