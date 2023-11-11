@@ -1,26 +1,59 @@
 # Atividade de ETL na API da Open Weather
 
-Este serviço foi desenvolvido para extrair, transformar e carregar (ETL) dados climáticos das seguintes cidades: São Paulo, Rio de Janeiro, Salvador, Fortaleza e Belo Horizonte, a partir da API do OpenWeatherMap. Uma interface Flask permite acessar os dados coletados. O serviço inclui testes automatizados para validar o funcionamento do ETL e dos endpoints da API.
+Este serviço em Flask realiza a extração, transformação e carga (ETL) de dados climáticos de cidades específicas através da API OpenWeatherMap, armazenando-os em um banco de dados SQLite para fácil acesso e análise.
 
-## Recursos
+## Configuração do Flask
 
-- **ETL de Dados Climáticos:** A classe `WeatherETL` gerencia o ETL, utilizando a API do OpenWeatherMap para extrair dados das cidades mencionadas e armazená-los em `clima.db` do SQLite3.
-- **Endpoints da API:** Dois endpoints principais são fornecidos: `/etl` para executar o ETL e `/data` para acessar/visualizar os dados armazenados.
+Configure a variável de ambiente `FLASK_APP`:
+
+```sh
+export FLASK_APP=app.py
+```
+
+## Implementação do ETL
+
+A classe `WeatherETL` gerencia o ETL:
+
+- **Extração:** Coleta dados da API OpenWeatherMap.
+- **Transformação:** Formata os dados brutos.
+- **Carga:** Insere os dados no banco de dados `clima.db`.
+
+## Armazenamento dos Dados
+
+Os dados são armazenados na tabela `weather_data` no banco de dados SQLite `clima.db`.
 
 ## Como Rodar o Serviço
 
-1. Instale as dependências com `pip install -r requirements.txt`.
-2. Certifique-se de ter acesso a uma chave API do OpenWeatherMap para `API_KEY`.
-3. Inicialize o banco de dados com `WeatherETL.init_db()`.
-4. Execute o serviço com `flask run`.
+1. Instale as dependências:
+
+   ```sh
+   pip install -r requirements.txt
+   ```
+
+2. Defina sua chave de API da OpenWeather no código.
+3. Inicialize o banco de dados:
+
+   ```sh
+   python -c 'from app import WeatherETL; WeatherETL.init_db()'
+   ```
+
+4. Execute o serviço Flask:
+
+   ```sh
+   flask run
+   ```
 
 ## Endpoints da API
 
-- **GET `/etl`:** Executa o ETL e atualiza o banco de dados.
-- **GET `/data`:** Retorna os dados climáticos armazenados.
+- **GET `/etl`**: Executa o processo ETL.
+- **GET `/data`**: Retorna os dados climáticos armazenados.
 
 ## Testando a Aplicação
 
-Execute `pytest` para rodar os testes. Eles verificarão a operacionalidade do ETL e a correta recuperação dos dados.
+Para testar a aplicação, execute:
 
-Acesse `http://127.0.0.1:5000/etl` ou `http://127.0.0.1:5000/data` para testar os endpoints manualmente em alguma aplicação, como o Postman.
+```sh
+pytest
+```
+
+Para interação manual com a API, use o Postman para acessar `http://127.0.0.1:5000/etl` ou `http://127.0.0.1:5000/data`.
